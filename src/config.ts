@@ -11,6 +11,7 @@ import * as SockJS from "sockjs";
 @Service()
 export default class Config {
   httpServer!: Server;
+  redisInstance: any;
   redis: Redis.ClientOpts = {
     host: "localhost"
   };
