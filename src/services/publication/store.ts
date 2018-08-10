@@ -1,14 +1,14 @@
-import { Service } from "typedi";
+import { injectable } from "inversify";
 import * as invariant from "invariant";
 
 // Types
 import { Publication } from "../../types/publication";
 
 /**
- * Singleton Service to catalogise and look up Publications,
- * identifying them by their unique names.
+ * Singleton Service that provides access to the known Publications of this
+ * Rosa instance.
  */
-@Service()
+@injectable()
 export default class PublicationStoreService {
   /**
    * Map of available Publications.
@@ -18,7 +18,7 @@ export default class PublicationStoreService {
   );
 
   /**
-   * Register `publication` for future use.
+   * Add `publication` to the list of known publications.
    */
   addPublication(publication: Publication): void {
     invariant(
@@ -40,7 +40,7 @@ export default class PublicationStoreService {
   }
 
   /**
-   * Determines whether publication is Shared or Private.
+   * Determine whether `publication` is Shared or Private.
    * Returns `true` if it's Private.
    */
   isPrivatePublication(publication: Object): boolean {

@@ -1,5 +1,3 @@
-import * as Promise from "bluebird";
-
 import { PublicationName, QueryParams } from "rosa-shared";
 
 import { SessionDataAccessor } from "./session";
