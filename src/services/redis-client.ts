@@ -1,25 +1,20 @@
 import * as Redis from "redis";
-import * as Promise from "bluebird";
-import { Token } from "typedi";
+import { promisify } from "util";
 
-// Services
 import Config from "../config";
+import { IPromiseRedisClient } from "../types/redis";
 
-/**
- * Singleton Service providing a RedisClient.
- */
-export const RedisClient = new Token<Redis.RedisClient>();
+export function RedisClientFactory(
+  config: Config
+): IPromiseRedisClient | Redis.RedisClient {
+  const redisInstance =
+    config.redisInstance || Redis.createClient(config.redis);
 
-export const RedisClientSub = new Token<Redis.RedisClient>();
+  const client = Object.create(null);
+  const redisCommands = require("redis-commands");
+  redisCommands.list.forEach((command: string) => {
+    client[command] = promisify(redisInstance[command]).bind(redisInstance);
+  });
 
-export function redisClientFactory(config: Config): Redis.RedisClient | any {
-  if (config.redisInstance) {
-    const redisInstance = config.redisInstance as Redis.RedisClient;
-    Promise.promisifyAll(redisInstance);
-    Promise.promisifyAll(redisInstance.multi);
-    return redisInstance;
-  }
-  Promise.promisifyAll(Redis.Multi.prototype);
-  Promise.promisifyAll(Redis.RedisClient.prototype);
-  return Redis.createClient(config.redis);
+  return client;
 }
