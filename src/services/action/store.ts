@@ -1,4 +1,4 @@
-import { Service } from "typedi";
+import { injectable } from "inversify";
 import * as invariant from "invariant";
 
 // Types
@@ -8,7 +8,7 @@ import { Action } from "../../types/action";
  * Singleton Service to catalogise and look up Actions,
  * identifying them by their unique names.
  */
-@Service()
+@injectable()
 export default class ActionStoreService {
   actions: { [name: string]: Action } = {};
 
@@ -18,7 +18,7 @@ export default class ActionStoreService {
       `Action '${action.name}' has already been registered.`
     );
 
-    this.actions[action.name] = action;
+    this.actions[action.name] = { ...action };
   }
 
   /**
