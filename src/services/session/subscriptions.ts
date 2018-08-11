@@ -1,12 +1,9 @@
-import { Inject, Service } from "typedi";
-import * as Promise from "bluebird";
-
-// Types
-import { RedisClientType } from "../../types/redis";
+import { injectable, inject } from "inversify";
 import { QueryId, SessionId } from "rosa-shared";
 
-// Services
-import { RedisClient } from "../redis-client";
+// Types
+import { TRedisClient } from "../../types/di";
+import { IPromiseRedisClient } from "../../types/redis";
 
 /**
  * Singleton Service to maintain the n:n relation between
@@ -15,13 +12,8 @@ import { RedisClient } from "../redis-client";
  * Sessions must be aware what Queries they are subscribed to.
  * Queries must be aware which Sessions are subscribed to it.
  */
-@Service()
+@injectable()
 export default class SessionSubscriptionsService {
-  /**
-   * Inject Dependencies.
-   */
-  @Inject(RedisClient) private redisClient!: RedisClientType;
-
   /**
    * Return the Redis key of the SET of QueryIdes for `sessionId`.
    */
@@ -36,6 +28,8 @@ export default class SessionSubscriptionsService {
     return `wable:${queryId}:sessions`;
   }
 
+  constructor(@inject(TRedisClient) private redisClient: IPromiseRedisClient) {}
+
   /**
    * Bind `queryId` with `sessionId`.
    */
@@ -43,8 +37,9 @@ export default class SessionSubscriptionsService {
     const sessionKey = this.getKeyForSession(sessionId);
     const queryKey = this.getKeyForQueryId(queryId);
     const multi = this.redisClient.multi();
-    multi.sadd(sessionKey, queryId).sadd(queryKey, sessionId);
-    return multi.execAsync();
+    multi.sadd(sessionKey, queryId);
+    multi.sadd(queryKey, sessionId);
+    return multi.exec();
   }
 
   /**
@@ -54,8 +49,9 @@ export default class SessionSubscriptionsService {
     const sessionKey = this.getKeyForSession(sessionId);
     const queryKey = this.getKeyForQueryId(queryId);
     const multi = this.redisClient.multi();
-    multi.srem(sessionKey, queryId).srem(queryKey, sessionId);
-    return multi.execAsync();
+    multi.srem(sessionKey, queryId);
+    multi.srem(queryKey, sessionId);
+    return multi.exec();
   }
 
   /**
@@ -63,7 +59,7 @@ export default class SessionSubscriptionsService {
    */
   getQueryIdsSession(sessionId: SessionId): Promise<QueryId[]> {
     const key = this.getKeyForSession(sessionId);
-    return this.redisClient.smembersAsync(key);
+    return this.redisClient.smembers(key);
   }
 
   /**
@@ -71,7 +67,7 @@ export default class SessionSubscriptionsService {
    */
   getSessionsForQueryId(queryId: QueryId): Promise<SessionId[]> {
     const key = this.getKeyForQueryId(queryId);
-    return this.redisClient.smembersAsync(key);
+    return this.redisClient.smembers(key);
   }
 
   /**
@@ -79,28 +75,29 @@ export default class SessionSubscriptionsService {
    */
   getOneSessionForQueryId(queryId: QueryId): Promise<SessionId> {
     const key = this.getKeyForQueryId(queryId);
-    return this.redisClient.srandmemberAsync(key);
+    return this.redisClient.srandmember(key);
   }
 
   /**
    * Delete all bindings of `sessionId`.
    */
-  cleanupSession(sessionId: SessionId): Promise<void> {
-    return this.getQueryIdsSession(sessionId).then((queryIdes: QueryId[]) => {
-      const redis = this.redisClient.multi();
+  async cleanupSession(sessionId: SessionId): Promise<void> {
+    const queryIds = await this.getQueryIdsSession(sessionId);
+    const redis = this.redisClient.multi();
 
-      // remove `sessionId from all queryId sets
-      queryIdes.forEach((queryId: QueryId): void => {
+    // remove `sessionId from all queryId sets
+    queryIds.forEach(
+      (queryId: QueryId): void => {
         const queryKey = this.getKeyForQueryId(queryId);
         redis.del(queryKey);
-      });
+      }
+    );
 
-      // delete the set for `sessionId` itself
-      const sessionKey = this.getKeyForSession(sessionId);
-      redis.del(sessionKey);
+    // delete the set for `sessionId` itself
+    const sessionKey = this.getKeyForSession(sessionId);
+    redis.del(sessionKey);
 
-      // execute all above
-      return redis.execAsync();
-    });
+    // execute all above
+    return redis.exec();
   }
 }
