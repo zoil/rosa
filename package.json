@@ -9,7 +9,9 @@
   ],
   "scripts": {
     "build": "tsc",
-    "test": "mocha -r ts-node/register src/**/*.spec.ts"
+    "test": "mocha -r ts-node/register src/**/*.spec.ts",
+    "test:watch": "mocha --watch --watch-extensions ts -r ts-node/register src/**/*.spec.ts",
+    "test-one:watch": "mocha --watch --watch-extensions ts -r ts-node/register ./src/index.spec.ts $1"
   },
   "repository": {
     "type": "git",
@@ -32,6 +34,7 @@
   "devDependencies": {
     "@types/async": "^2.0.46",
     "@types/chai": "^4.1.4",
+    "@types/chai-spies": "^1.0.0",
     "@types/ejson": "^2.1.2",
     "@types/invariant": "^2.2.29",
     "@types/mocha": "^5.2.5",
@@ -42,6 +45,7 @@
     "@types/shortid": "0.0.29",
     "@types/sockjs": "^0.3.31",
     "chai": "^4.1.2",
+    "chai-spies": "^1.0.0",
     "detect-port": "^1.2.1",
     "mocha": "^4.0.1",
     "mocha-steps": "^1.1.0",
