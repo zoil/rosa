@@ -1,14 +1,11 @@
-import * as Promise from "bluebird";
-import { Service, Inject } from "typedi";
+import { QueryId } from "rosa-shared";
+import { injectable, inject } from "inversify";
 
 // Types
-import { RedisClientType } from "../../types/redis";
 import { StringMap } from "../../types/general";
-
-// Services
-import { RedisClient } from "../redis-client";
-import { QueryId } from "rosa-shared";
+import { TRedisClient } from "../../types/di";
 import { QueryTag } from "../../types/query";
+import { IPromiseRedisClient } from "../../types/redis";
 
 /**
  * Singleton Service to maintain the n:n relation between QueryId and RequestTag.
@@ -18,94 +15,93 @@ import { QueryTag } from "../../types/query";
  * be matched to Tags provided by Requests. When any overlapping Tags are detected
  * in a Request, it will be invalidated and triggered to execute once more.
  */
-@Service()
+@injectable()
 export default class QueryTagsService {
-  /**
-   * Inject Dependencies.
-   */
-  @Inject(RedisClient) private redisClient!: RedisClientType;
-
   /**
    * Return the Redis key of the QueryId SET for `tag`.
    */
   private getKeyForTag(tag: QueryTag) {
-    return `tag:${tag}:queries`;
+    return `t:${tag}:q`;
   }
 
   /**
    * Return the Redis key of the Tags SET for `queryId`.
    */
   private getKeyForQueryId(queryId: QueryId) {
-    return `query:${queryId}:tags`;
+    return `q:${queryId}:t`;
   }
+
+  /**
+   * Inject Dependencies.
+   */
+  constructor(@inject(TRedisClient) private redisClient: IPromiseRedisClient) {}
 
   /**
    * Return all Tags for `queryId`.
    */
-  getTagsForQueryId(queryId: QueryId): Promise<QueryTag[]> {
+  async getTagsForQueryId(queryId: QueryId): Promise<QueryTag[]> {
     const key = this.getKeyForQueryId(queryId);
-    return this.redisClient.smembersAsync(key);
+    return this.redisClient.smembers(key);
   }
 
   /**
    * Return all QueryIds for `tag`.
    */
-  getQueryIdsForTag(tag: string): Promise<QueryId[]> {
+  async getQueryIdsForTag(tag: string): Promise<QueryId[]> {
     const key = this.getKeyForTag(tag);
-    return this.redisClient.smembersAsync(key);
+    return this.redisClient.smembers(key);
   }
 
   /**
    * Return all QueryIds for `tags`.
    */
-  getQueryIdsForTags(tags: QueryTag[]): Promise<QueryId[]> {
+  async getQueryIdsForTags(tags: QueryTag[]): Promise<QueryId[]> {
     const tagKeys = tags.map(tag => this.getKeyForTag(tag));
-    return this.redisClient.sunionAsync(tagKeys);
+    return this.redisClient.sunion(tagKeys);
   }
 
   /**
    * Bind `queryId` with `tag`.
    */
-  update(queryId: QueryId, tags: QueryTag[]) {
-    const key = this.getKeyForQueryId(queryId);
-    return this.getTagsForQueryId(queryId).then((currentTags: QueryTag[]) => {
-      // calculate keys for `tags`
-      const tagKeys: StringMap = Object.create(null);
-      tags.forEach((tag: QueryTag) => {
-        tagKeys[tag] = this.getKeyForTag(tag);
-      });
+  async update(queryId: QueryId, tags: QueryTag[]) {
+    const queryKey = this.getKeyForQueryId(queryId);
 
-      // start Redis.Multi
-      const redis = this.redisClient.multi();
-
-      // add missing tags
-      const missingTags = tags.filter(e => !currentTags.includes(e));
-      missingTags.forEach(tag => {
-        redis.sadd(key, tag);
-        const tagKey = tagKeys[tag];
-        redis.sadd(tagKey, queryId);
-      });
-
-      // remove obsolete tags
-      const obsoleteTags = currentTags.filter(e => !tags.includes(e));
-      obsoleteTags.forEach(tag => {
-        redis.srem(key, tag);
-        const tagKey = tagKeys[tag];
-        redis.srem(tagKey, queryId);
-      });
-
-      // exec Redis.Multi
-      return redis.execAsync();
+    // calculate keys for `tags`
+    const currentTags: QueryTag[] = await this.getTagsForQueryId(queryId);
+    const tagKeys: StringMap = Object.create(null);
+    tags.forEach((tag: QueryTag) => {
+      tagKeys[tag] = this.getKeyForTag(tag);
     });
+
+    // start Redis.Multi
+    const redis = this.redisClient.multi();
+
+    // add missing tags
+    const missingTags = tags.filter(e => !currentTags.includes(e));
+    missingTags.forEach(tag => {
+      redis.sadd(queryKey, tag);
+      const tagKey = tagKeys[tag];
+      redis.sadd(tagKey, queryId);
+    });
+
+    // remove obsolete tags
+    const obsoleteTags = currentTags.filter(e => !tags.includes(e));
+    obsoleteTags.forEach(tag => {
+      redis.srem(queryKey, tag);
+      const tagKey = tagKeys[tag];
+      redis.srem(tagKey, queryId);
+    });
+
+    // exec Redis.Multi
+    return redis.exec();
   }
 
   /**
    * Delete all bindings of `queryId`.
    */
-  cleanupQueryId(queryId: QueryId) {
-    this.update(queryId, []).then(() => {
-      const key = this.getKeyForQueryId(queryId);
-      return this.redisClient.delAsync(key);
-    });
+  async cleanupQueryId(queryId: QueryId) {
+    await this.update(queryId, []);
+    const key = this.getKeyForQueryId(queryId);
+    return this.redisClient.del(key);
   }
 }

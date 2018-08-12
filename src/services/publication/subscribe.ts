@@ -1,49 +1,43 @@
-import * as Promise from "bluebird";
-import { Service, Inject } from "typedi";
+import { injectable, inject } from "inversify";
 const sha1 = require("sha1");
 
 // Types
 import { Publication } from "../../types/publication";
 import { QueryParams, QueryId } from "rosa-shared";
-import { SessionDataAccessor } from "../../types/session";
+import { IdentityDataAccessor } from "../../types/identity";
 
 // Services
-import SessionSubscriptionsService from "../session/subscriptions";
+import ConnectionSubscriptionsService from "../connection/subscriptions";
 import PublicationStoreService from "./store";
 import QueryMetaService from "../query/meta";
 import { PublicationName } from "rosa-shared";
+import {
+  TPublicationStore,
+  TQueryMetaService,
+  TConnectionSubscriptions
+} from "../../types/di";
 
 /**
  * Singleton Service to let WebsocketConnections watching Publications.
  */
-@Service()
+@injectable()
 export default class PublicationSubscribeService {
   /**
-   * Inject Dependencies.
-   */
-  @Inject() private sessionSubscriptionsService!: SessionSubscriptionsService;
-  @Inject() private publicationStoreService!: PublicationStoreService;
-  @Inject() private queryMetaService!: QueryMetaService;
-
-  /**
-   * Determines whether `session` is allowed to use `publication`
+   * Determines whether `identityData` is allowed to use `publication`
    * with `params`. Throws an Error if it's not allowed.
    */
-  private authorize(
+  private async authorize(
     publication: Publication,
     params: QueryParams,
-    session: SessionDataAccessor
+    identityData: IdentityDataAccessor
   ): Promise<void> {
-    return Promise.try(() => {
-      if (!publication.authorize) {
-        return true;
-      }
-      return publication.authorize(params, session);
-    }).then((authResult: boolean) => {
-      if (!authResult) {
-        throw new Error("Unauthorized");
-      }
-    });
+    if (!publication.authorize) {
+      return;
+    }
+    const authorized = await publication.authorize(params, identityData);
+    if (!authorized) {
+      throw new Error("Unauthorized");
+    }
   }
 
   /**
@@ -52,57 +46,64 @@ export default class PublicationSubscribeService {
   private calculateQueryId(
     publication: Publication,
     params: QueryParams,
-    session: SessionDataAccessor
+    identityData: IdentityDataAccessor
   ): QueryId {
     let hashBase = JSON.stringify(params);
     if (this.publicationStoreService.isPrivatePublication(publication)) {
-      hashBase = hashBase + "\n" + session.getSessionId();
+      hashBase = hashBase + "\n" + identityData.getIdentityId();
     }
     return sha1(hashBase);
   }
 
   /**
-   * Return the QueryId for the input params.
+   * Create Query based on arguments and return its QueryId.
    */
-  private getQuery(
+  private async getQuery(
     publication: Publication,
     params: QueryParams,
-    session: SessionDataAccessor
+    identityData: IdentityDataAccessor
   ): Promise<QueryId> {
-    const queryId = this.calculateQueryId(publication, params, session);
-    return this.sessionSubscriptionsService
-      .bind(session.getSessionId(), queryId)
-      .then(() => this.queryMetaService.exists(queryId))
-      .then(exists => {
-        if (exists) {
-          return;
-        }
-        return this.queryMetaService.create(queryId, publication.name, params);
-      })
-      .then(() => queryId);
+    const queryId = this.calculateQueryId(publication, params, identityData);
+    await this.connectionSubscriptionsService.bind(
+      identityData.getIdentityId(),
+      queryId
+    );
+    const exists = await this.queryMetaService.exists(queryId);
+    if (!exists) {
+      await this.queryMetaService.create(queryId, publication.name, params);
+    }
+    return queryId;
   }
 
+  constructor(
+    @inject(TConnectionSubscriptions)
+    private connectionSubscriptionsService: ConnectionSubscriptionsService,
+    @inject(TPublicationStore)
+    private publicationStoreService: PublicationStoreService,
+    @inject(TQueryMetaService) private queryMetaService: QueryMetaService
+  ) {}
+
   /**
-   * Subscribe `session` to Publication with `name` using `params`.
+   * Subscribe `identityData` to Publication with `name` using `params`.
    */
-  subscribe(
-    session: SessionDataAccessor,
+  async subscribe(
+    identityData: IdentityDataAccessor,
     publicationName: PublicationName,
     params?: QueryParams
   ): Promise<QueryId> {
-    /**
-     * TODO:
-     * 1) create queryId if not exists yet
-     * 2) exec if needed
-     * 3) emit new, full data
-     */
     const publication = this.publicationStoreService.findPublication(
       publicationName
     );
 
-    // Try and authorize the `session` first for the request.
-    return this.authorize(publication, params || {}, session)
-      .then(() => this.getQuery(publication, params || {}, session))
-      .then(queryId => queryId);
+    // Try and authorize the `identityData` first for the request.
+    const queryParams = params || {};
+    await this.authorize(publication, queryParams, identityData);
+
+    // Then look or create the Query
+    const queryId = await this.getQuery(publication, queryParams, identityData);
+
+    // TODO: schedule Query to execute
+
+    return queryId;
   }
 }

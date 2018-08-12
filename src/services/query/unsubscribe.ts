@@ -1,44 +1,46 @@
-import * as Promise from "bluebird";
-import { Service, Inject } from "typedi";
+import { injectable, inject } from "inversify";
 
 // Types
-import { SessionDataAccessor } from "../../types/session";
 import { QueryId } from "rosa-shared";
+import { ConnectionId } from "../../types/connection";
+import { TConnectionSubscriptions } from "../../types/di";
 
 // Services
-import SessionSubscriptionsService from "../session/subscriptions";
+import ConnectionSubscriptionsService from "../connection/subscriptions";
+import { ConnectionWrapper } from "../connection/wrapper";
 
 /**
- * Singleton Service to let Sessions unsubscribing from Queries.
+ * Singleton Service to let Connections unsubscribing from Queries.
  */
-@Service()
-export default class QueryUnwatchService {
+@injectable()
+export default class QueryUnsubscribeService {
   /**
    * Inject Dependencies.
    */
-  @Inject() sessionSubscriptionsService!: SessionSubscriptionsService;
+  @inject(TConnectionSubscriptions)
+  connectionSubscriptionsService!: ConnectionSubscriptionsService;
 
   /**
-   * Unsubscribe `session` from `queryId`.
+   * Unsubscribe `connectionId` from `queryId`.
    */
-  unwatch(session: SessionDataAccessor, queryId: QueryId) {
-    // TODO: onUnsubscribe
-    return this.sessionSubscriptionsService.unbind(
-      session.getSessionId(),
-      queryId
-    );
+  async unsubscribe(connectionId: ConnectionId, queryId: QueryId) {
+    return this.connectionSubscriptionsService.unbind(connectionId, queryId);
   }
 
   /**
-   * Unsubscribe `session` from all of its subscriptions.
+   * Unsubscribe `connection` from all of its subscriptions.
    */
-  unwatchAll(session: SessionDataAccessor) {
-    return this.sessionSubscriptionsService
-      .getQueryIdsSession(session.getSessionId())
-      .then((queryIdes: QueryId[]) =>
-        Promise.map(queryIdes, (queryId: QueryId) =>
-          this.unwatch(session, queryId)
-        )
-      );
+  async unsubscribeAll(connection: ConnectionWrapper) {
+    const connectionId = connection.getConnectionId();
+    const queryIds: QueryId[] = await this.connectionSubscriptionsService.getQueryIdsForConnection(
+      connectionId
+    );
+
+    const promises: Promise<void>[] = [];
+    for (let queryId in queryIds) {
+      const promise = this.unsubscribe(connectionId, queryId);
+      promises.push(promise);
+    }
+    return Promise.all(promises);
   }
 }

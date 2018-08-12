@@ -1,14 +1,15 @@
-import { Service } from "typedi";
-import { ConfigType } from "./types/config";
-
+import { injectable } from "inversify";
 import { Server } from "http";
 import * as Redis from "redis";
 import * as SockJS from "sockjs";
 
+// Types
+import { ConfigType } from "./types/config";
+
 /**
  * Singleton Service to store and provide the app configuration.
  */
-@Service()
+@injectable()
 export default class Config {
   httpServer!: Server;
   redisInstance: any;
@@ -21,8 +22,8 @@ export default class Config {
     handshakeTimeout: 5000,
     sessionTimeout: 1000,
     requestSignatureTimeout: 60000,
-    inactiveSessionExpiry: 60,
-    activeSessionExpiry: 86400
+    inactiveIdentityExpiry: 60,
+    activeIdentityExpiry: 86400
   };
 
   init(config: ConfigType) {

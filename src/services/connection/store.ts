@@ -1,7 +1,7 @@
 import { injectable } from "../../../node_modules/inversify";
 import { Connection } from "../../../node_modules/@types/sockjs";
+import { ConnectionWrapper } from "./wrapper";
 import { ConnectionId } from "../../types/connection";
-import { ConnectionWrapper } from "../../types/websocket";
 
 @injectable()
 export class ConnectionStoreService {

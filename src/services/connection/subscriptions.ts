@@ -68,7 +68,7 @@ export default class ConnectionSubscriptionsService {
   /**
    * Return ConnectionIds for `queryId`.
    */
-  async getConnectionsForQueryId(queryId: QueryId): Promise<ConnectionId[]> {
+  async getConnectionIdsForQueryId(queryId: QueryId): Promise<ConnectionId[]> {
     const key = this.getKeyForQueryId(queryId);
     return this.redisClient.smembers(key);
   }

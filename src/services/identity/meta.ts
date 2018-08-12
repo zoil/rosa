@@ -39,7 +39,7 @@ export default class IdentityMetaService {
   /**
    * Set `secret` for `identityId`.
    */
-  private setSecret(identityId: IdentityId, secret: string) {
+  private async setSecret(identityId: IdentityId, secret: string) {
     const key = this.getKey(identityId);
     return this.redisClient.hset(key, KEY_IDENTITY_SECRET, secret);
   }
@@ -47,7 +47,7 @@ export default class IdentityMetaService {
   /**
    * Return the `secret` for `identityId`.
    */
-  private getSecret(identityId: IdentityId): Promise<string> {
+  private async getSecret(identityId: IdentityId): Promise<string> {
     const key = this.getKey(identityId);
     return this.redisClient.hget(key, KEY_IDENTITY_SECRET);
   }

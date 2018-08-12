@@ -1,4 +1,4 @@
-import { Protocols } from "rosa-shared";
+import { Protocols, QueryId } from "rosa-shared";
 import { Connection } from "../../../node_modules/@types/sockjs";
 import { IdentityId } from "../../types/identity";
 
@@ -32,5 +32,9 @@ export class ConnectionWrapper {
 
   setIdentityId(identityId: IdentityId) {
     this.identityId = identityId;
+  }
+
+  async onSubscriptionData(queryId: QueryId, result: any): Promise<void> {
+    return Promise.resolve();
   }
 }

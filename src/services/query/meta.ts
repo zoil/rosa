@@ -20,7 +20,7 @@ export default class QueryMetaService {
    * Return the Redis key for `queryId`.
    */
   private getKey(queryId: QueryId) {
-    return `query:${queryId}`;
+    return `q:${queryId}`;
   }
 
   /**
@@ -41,7 +41,7 @@ export default class QueryMetaService {
    * Set `params` for `queryId`.
    * @todo isPlainObject()
    */
-  create(
+  async create(
     queryId: QueryId,
     publicationName: PublicationName,
     params: QueryParams
@@ -84,7 +84,7 @@ export default class QueryMetaService {
   /**
    * Delete all data for `queryId`.
    */
-  cleanup(queryId: QueryId) {
+  async cleanup(queryId: QueryId) {
     const key = this.getKey(queryId);
     return this.redisClient.del(key);
   }

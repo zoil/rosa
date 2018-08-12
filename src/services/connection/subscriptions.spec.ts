@@ -97,7 +97,7 @@ describe("ConnectionSubscriptionsService", () => {
     });
     const queryId = "query1";
     service
-      .getConnectionsForQueryId(queryId)
+      .getConnectionIdsForQueryId(queryId)
       .then(queryIds => expect(queryIds).to.equal(dummyConnectionIds));
 
     const queryKey = service["getKeyForQueryId"](queryId);

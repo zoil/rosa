@@ -1,18 +1,23 @@
-import { Service, Inject } from "typedi";
+import { injectable, inject } from "inversify";
 import * as Async from "async";
-import * as Promise from "bluebird";
 
 // Types
-import { QueryId, SessionId } from "rosa-shared";
+import { QueryId } from "rosa-shared";
+import {
+  TConnectionSubscriptions,
+  TQueryExecuteService,
+  TConnectionStore
+} from "../../types/di";
+import { ConnectionId } from "../../types/connection";
 
 // Services
-import WebsocketServer from "../websocket/server";
-import SessionSubscriptionsService from "../session/subscriptions";
-import ExecuteQueryService from "./execute";
+import ConnectionSubscriptionsService from "../connection/subscriptions";
+import QueryExecute from "./execute";
+import { ConnectionStoreService } from "../connection/store";
 
 type Task = {
   queryId: QueryId;
-  sessionId?: SessionId;
+  connectionId?: ConnectionId;
 };
 
 /**
@@ -20,86 +25,89 @@ type Task = {
  * TODO: this module should just get the cache key of the payload.
  * Also we need a separate module listening for invalidations via tags.
  */
-@Service()
+@injectable()
 export default class QueryPublishService {
-  /**
-   * Inject Dependencies.
-   */
-  @Inject(() => WebsocketServer)
-  private websocketServer!: WebsocketServer;
-  @Inject() private sessionSubscriptionsService!: SessionSubscriptionsService;
-  @Inject() private executeQueryService!: ExecuteQueryService;
-
   /**
    * Operation Queue.
    */
   private queue: Async.AsyncQueue<{}>;
 
   /**
-   * Return the subscribed SessionIds for task.
+   * Return the subscribed ConnectionIds for task.
    */
-  private getSessionIdsForTask(task: Task): Promise<SessionId[]> {
-    return Promise.try(() => {
-      if (task.sessionId) {
-        return [task.sessionId];
-      } else {
-        return this.sessionSubscriptionsService.getSessionsForQueryId(
-          task.queryId
-        );
-      }
-    });
+  private async getConnectionIdsForTask(task: Task): Promise<ConnectionId[]> {
+    if (task.connectionId) {
+      // This task is for a single connectionId
+      return [task.connectionId];
+    }
+
+    // This task is broadcast type.
+    return this.connectionSubscriptionsService.getConnectionIdsForQueryId(
+      task.queryId
+    );
   }
 
   /**
    * Queue worker for Async.
    */
-  private worker(task: Task, callback: (err?: Error, msg?: string) => void) {
-    this.getSessionIdsForTask(task)
-      .then((sessionIds: SessionId[]) =>
-        this.publishForSessionIds(sessionIds, task.queryId)
-      )
-      .finally(callback);
+  private async worker(
+    task: Task,
+    callback: (err?: Error, msg?: string) => void
+  ) {
+    try {
+      const connectionIds: ConnectionId[] = await this.getConnectionIdsForTask(
+        task
+      );
+      await this.publishForConnectionIds(connectionIds, task.queryId);
+    } finally {
+      callback();
+    }
   }
 
   /**
-   * Publish `data` of `queryId` for `sessionIds`.
+   * Publish `data` of `queryId` for `connectionIds`.
    */
-  private publishForSessionIds(
-    sessionIds: SessionId[],
+  private async publishForConnectionIds(
+    connectionIds: ConnectionId[],
     queryId: QueryId
-  ): Promise<void> {
-    return this.executeQueryService.executeQueryId(queryId).then(result => {
-      // TODO: maybe use Promise.all() here?
-      sessionIds.forEach(sessionId => {
-        const connection = this.websocketServer.getConnectionForSessionId(
-          sessionId
-        );
-        if (!connection) {
-          console.log("Cannot find connection for session id", sessionId);
-          return;
-        }
-        // TODO: return??
-        connection.onSubscriptionData(queryId, result);
-      });
+  ): Promise<any> {
+    const result = await this.executeQueryService.executeQueryId(queryId);
+    const promises: Promise<void>[] = [];
+    connectionIds.forEach(connectionId => {
+      const connection = this.connectionStore.getConnectionById(connectionId);
+      if (!connection) {
+        console.log("Cannot find connection for connectionId", connectionId);
+        return;
+      }
+      promises.push(connection.onSubscriptionData(queryId, result));
     });
+    return Promise.all(promises);
   }
 
-  constructor() {
+  /**
+   * Inject Dependencies.
+   */
+  constructor(
+    @inject(TConnectionSubscriptions)
+    private connectionSubscriptionsService: ConnectionSubscriptionsService,
+    @inject(TQueryExecuteService) private executeQueryService: QueryExecute,
+    @inject(TConnectionStore) private connectionStore: ConnectionStoreService
+  ) {
     this.queue = Async.queue(this.worker.bind(this), 1);
   }
 
   /**
    * Execute `queryId` and broadcast the results throughout all subscribers.
    */
-  queryId(queryId: QueryId) {
+  publishById(queryId: QueryId) {
     return this.queue.push({ queryId });
   }
 
   /**
-   * Execute `queryId` and send the result to `sessionId`.
+   * Execute `queryId` and send the result to `connectionId` via this.queue.
    * These kind of requests take priority in the queue.
    */
-  queryIdForSessionId(queryId: QueryId, sessionId: SessionId) {
-    return this.queue.unshift({ queryId, sessionId });
+  publishByIdForConnectionId(queryId: QueryId, connectionId: ConnectionId) {
+    return this.queue.unshift({ queryId, connectionId });
   }
 }

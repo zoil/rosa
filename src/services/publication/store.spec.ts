@@ -1,6 +1,8 @@
-import PublicationStoreService from "./store";
 import { expect } from "chai";
 import "mocha";
+
+// Modules
+import PublicationStoreService from "./store";
 
 // Types
 import {
@@ -8,7 +10,7 @@ import {
   PublicationExecResult,
   PublicationPrivate
 } from "../../types/publication";
-import { QueryParams } from "../../../node_modules/rosa-shared";
+import { QueryParams } from "rosa-shared";
 
 // Tests
 function createSharedPublication(name: string): PublicationShared {
