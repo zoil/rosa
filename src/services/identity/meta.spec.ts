@@ -2,13 +2,13 @@ import { Container } from "inversify";
 import { expect, spy } from "chai";
 import "chai-spies";
 import "mocha";
-import { TRedisClient, TSessionMeta, TConfig } from "../../types/di";
-import SessionMetaService, { KEY_SESSION_SECRET } from "./meta";
+import { TRedisClient, TIdentityMeta, TConfig } from "../../types/di";
+import IdentityMetaService, { KEY_IDENTITY_SECRET } from "./meta";
 
 // Modules
 
 // Helpers
-function getSessionMetaService(
+function getIdentityMetaService(
   redisMethods: { [key: string]: any } = {},
   config: { [key: string]: any } = {}
 ) {
@@ -16,17 +16,17 @@ function getSessionMetaService(
   const redisClient = redisMethods;
   container.bind(TRedisClient).toConstantValue(redisClient);
   container.bind(TConfig).toConstantValue(config);
-  container.bind(TSessionMeta).to(SessionMetaService);
-  return container.get<SessionMetaService>(TSessionMeta);
+  container.bind(TIdentityMeta).to(IdentityMetaService);
+  return container.get<IdentityMetaService>(TIdentityMeta);
 }
 
 async function authenticate(
   trigger: {
-    invalidSessionId?: boolean;
+    invalidIdentityId?: boolean;
     badSecret?: boolean;
     timeout?: boolean;
   } = {
-    invalidSessionId: false,
+    invalidIdentityId: false,
     badSecret: false,
     timeout: false
   }
@@ -38,7 +38,7 @@ async function authenticate(
   };
   const fnGet = () => secret;
   const timeout = 10;
-  const meta = getSessionMetaService(
+  const meta = getIdentityMetaService(
     {
       hset: fnSet,
       hget: fnGet
@@ -49,80 +49,80 @@ async function authenticate(
       }
     }
   );
-  const newSession = await meta.createNewSession();
+  const newIdentity = await meta.createNewIdentity();
   const timestamp = new Date().getTime();
   const signature = meta.generateSignature(
-    trigger.invalidSessionId ? "invalidSessionId" : newSession.id,
-    trigger.badSecret ? "badSecret" : newSession.secret,
+    trigger.invalidIdentityId ? "invalidIdentityId" : newIdentity.id,
+    trigger.badSecret ? "badSecret" : newIdentity.secret,
     trigger.timeout ? timestamp - timeout - 1 : timestamp
   );
-  meta.authenticate(newSession.id, signature, timestamp);
+  meta.authenticate(newIdentity.id, signature, timestamp);
 }
 
 // Tests
-describe("SessionMetaService", () => {
+describe("IdentityMetaService", () => {
   it("should return the correct Redis key", () => {
-    const meta = getSessionMetaService({}, {});
-    const sessionId = "foo";
-    const result = meta["getKey"](sessionId);
-    expect(result).to.equal(`session:${sessionId}`);
+    const meta = getIdentityMetaService({}, {});
+    const identityId = "foo";
+    const result = meta["getKey"](identityId);
+    expect(result).to.equal(`identity:${identityId}`);
   });
 
-  it("should set the session secret", () => {
-    const sessionId = "foo";
+  it("should set the identity secret", () => {
+    const identityId = "foo";
     const secret = "secret123";
     const fn = spy(() => Promise.resolve);
-    const meta = getSessionMetaService(
+    const meta = getIdentityMetaService(
       {
         hset: fn
       },
       {}
     );
-    meta["setSecret"](sessionId, secret);
-    const redisKey = meta["getKey"](sessionId);
-    expect(fn).to.have.been.called.with(redisKey, KEY_SESSION_SECRET, secret);
+    meta["setSecret"](identityId, secret);
+    const redisKey = meta["getKey"](identityId);
+    expect(fn).to.have.been.called.with(redisKey, KEY_IDENTITY_SECRET, secret);
   });
 
-  it("should get the session secret", () => {
-    const sessionId = "foo";
+  it("should get the identity secret", () => {
+    const identityId = "foo";
     const fn = spy(() => Promise.resolve);
-    const meta = getSessionMetaService(
+    const meta = getIdentityMetaService(
       {
         hget: fn
       },
       {}
     );
-    meta["getSecret"](sessionId);
-    const redisKey = meta["getKey"](sessionId);
-    expect(fn).to.have.been.called.with(redisKey, KEY_SESSION_SECRET);
+    meta["getSecret"](identityId);
+    const redisKey = meta["getKey"](identityId);
+    expect(fn).to.have.been.called.with(redisKey, KEY_IDENTITY_SECRET);
   });
 
-  it("should create new session with", () => {
+  it("should create new identity with", () => {
     const fn = spy(() => Promise.resolve);
-    const meta = getSessionMetaService(
+    const meta = getIdentityMetaService(
       {
         hset: fn
       },
       {}
     );
-    meta.createNewSession().then(result => {
+    meta.createNewIdentity().then(result => {
       const redisKey = meta["getKey"](result.id);
       expect(fn).to.have.been.called.with(
         redisKey,
-        KEY_SESSION_SECRET,
+        KEY_IDENTITY_SECRET,
         result.secret
       );
     });
   });
 
-  it("should be able to authenticate an existing session", () => {
+  it("should be able to authenticate an existing identity", () => {
     authenticate();
   });
 
-  it("should fail to authenticate when using an invalid session id", async () => {
+  it("should fail to authenticate when using an invalid identity id", async () => {
     const fn = () =>
       authenticate({
-        invalidSessionId: true
+        invalidIdentityId: true
       });
     expect(fn).to.throw;
   });
@@ -140,17 +140,17 @@ describe("SessionMetaService", () => {
     expect(fn).to.throw;
   });
 
-  it("should delete session from Redis on cleanup()", () => {
-    const sessionId = "foo";
+  it("should delete identity from Redis on cleanup()", () => {
+    const identityId = "foo";
     const fn = spy(() => Promise.resolve);
-    const meta = getSessionMetaService(
+    const meta = getIdentityMetaService(
       {
         del: fn
       },
       {}
     );
-    meta.cleanup(sessionId);
-    const redisKey = meta["getKey"](sessionId);
+    meta.cleanup(identityId);
+    const redisKey = meta["getKey"](identityId);
     expect(fn).to.have.been.called.with(redisKey);
   });
 });

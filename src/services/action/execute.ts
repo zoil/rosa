@@ -1,50 +1,54 @@
-import { Service, Inject } from "typedi";
-import * as Promise from "bluebird";
+import { injectable, inject } from "inversify";
 
 // Types
 import { ActionParams, QueryId } from "rosa-shared";
 import { ActionExecResults } from "../../types/action";
-import { SessionDataAccessor } from "../../types/session";
+import { IdentityDataAccessor } from "../../types/identity";
 
 // Services
 import ActionStoreService from "./store";
 import QueryTagsService from "../query/tags";
 import QueryPublishService from "../query/publish";
+import {
+  TActionStore,
+  TQueryTagsService,
+  TQueryPublishService
+} from "../../types/di";
 
 /**
  * Singleton Service to execute an Action.
  */
-@Service()
-export default class ExecuteAction {
-  @Inject() private actionStoreService!: ActionStoreService;
-  @Inject() private queryTagsService!: QueryTagsService;
-  @Inject() private queryPublishService!: QueryPublishService;
+@injectable()
+export default class ActionExecuteService {
+  @inject(TActionStore)
+  private actionStoreService!: ActionStoreService;
+  @inject(TQueryTagsService)
+  private queryTagsService!: QueryTagsService;
+  @inject(TQueryPublishService)
+  private queryPublishService!: QueryPublishService;
 
-  execute(
+  async execute(
     actionName: string,
     actionParams: ActionParams,
-    session: SessionDataAccessor
+    identityData: IdentityDataAccessor
   ): Promise<ActionExecResults> {
-    return Promise.try(() => {
-      // TODO: Update tags
-      const action = this.actionStoreService.findAction(actionName);
-      if (action.authorize && !action.authorize(actionParams, session)) {
-        throw Error("Unauthorized");
-      }
-      return action.exec(actionParams, session);
-    }).then((result: ActionExecResults) => {
-      // update tags
-      result.affectedTags.forEach((tag: string) =>
-        this.queryTagsService
-          .getQueryIdsForTag(tag)
-          .then((queryIds: QueryId[]) =>
-            queryIds.forEach((queryId: QueryId) =>
-              this.queryPublishService.queryId(queryId)
-            )
+    const action = this.actionStoreService.findAction(actionName);
+    if (action.authorize && !action.authorize(actionParams, identityData)) {
+      throw Error("Unauthorized");
+    }
+    const result = await action.exec(actionParams, identityData);
+
+    // update tags
+    result.affectedTags.forEach((tag: string) =>
+      this.queryTagsService
+        .getQueryIdsForTag(tag)
+        .then((queryIds: QueryId[]) =>
+          queryIds.forEach((queryId: QueryId) =>
+            this.queryPublishService.publishById(queryId)
           )
-      );
-      // return exec result
-      return result.payload;
-    });
+        )
+    );
+    // return exec result
+    return result.payload;
   }
 }

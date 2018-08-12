@@ -1,39 +1,40 @@
 // Types
-import { SessionId } from "rosa-shared";
-import { SessionDataAccessor } from "../../types/session";
+import { IdentityDataAccessor, IdentityId } from "../../types/identity";
 import { IPromiseRedisClient } from "../../types/redis";
 
-export class SessionData implements SessionDataAccessor {
+export class IdentityData implements IdentityDataAccessor {
   /**
-   * The Redis Hash key for this.sessionId.
-   * This is set by this.setSessionId().
+   * The Redis Hash key for this.identityId.
    */
   private dataKey: string;
 
   /**
-   * The Session Id for `this`.
+   * The Identity Id for `this`.
    */
-  private sessionId: SessionId;
+  private identityId: IdentityId;
 
-  constructor(private redisClient: IPromiseRedisClient, sessionId: SessionId) {
-    this.sessionId = sessionId;
-    this.dataKey = `session:${sessionId}:data`;
+  constructor(
+    private redisClient: IPromiseRedisClient,
+    identityId: IdentityId
+  ) {
+    this.identityId = identityId;
+    this.dataKey = `identity:${identityId}:data`;
   }
 
   /**
-   * Return the SessionId.
+   * Return the IdentityId bound to this.
    */
-  getSessionId(): SessionId {
-    return this.sessionId;
+  getIdentityId(): IdentityId {
+    return this.identityId;
   }
 
   /**
-   * Delete all data of `sessionId`.
+   * Delete all data of `this.identityId`.
    */
   async flush(): Promise<void> {
     await this.redisClient.del(this.dataKey);
     delete this.dataKey;
-    delete this.sessionId;
+    delete this.identityId;
   }
 
   /**

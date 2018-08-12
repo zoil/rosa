@@ -1,11 +1,13 @@
-import ActionStoreService from "./store";
 import { expect } from "chai";
 import "mocha";
 
+// Modules
+import ActionStoreService from "./store";
+
 // Types
 import { Action, ActionExecResults } from "../../types/action";
-import { ActionParams } from "../../../node_modules/rosa-shared";
-import { SessionDataAccessor } from "../../types/session";
+import { ActionParams } from "rosa-shared";
+import { IdentityDataAccessor } from "../../types/identity";
 
 // Tests
 function createAction(name: string): Action {
@@ -13,11 +15,11 @@ function createAction(name: string): Action {
     name: name,
     exec(
       params: ActionParams,
-      session: SessionDataAccessor
+      identity: IdentityDataAccessor
     ): Promise<ActionExecResults> | ActionExecResults {
       return {
         affectedTags: [],
-        payload: [params, session, name]
+        payload: [params, identity, name]
       };
     }
   };

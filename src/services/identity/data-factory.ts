@@ -1,16 +1,16 @@
 import { injectable, inject } from "inversify";
 
 // Types
-import { SessionId } from "rosa-shared";
 import { TRedisClient } from "../../types/di";
 import { IPromiseRedisClient } from "../../types/redis";
-import { SessionData } from "./data";
+import { IdentityData } from "./data";
+import { IdentityId } from "../../types/identity";
 
 /**
  * Factory Service for creating SessionData instances.
  */
 @injectable()
-export class SessionDataFactory {
+export class IdentityDataFactory {
   /**
    * Inject Dependencies.
    */
@@ -20,7 +20,7 @@ export class SessionDataFactory {
   /**
    * Factory method to create `SessionData`s.
    */
-  create(sessionId: SessionId): SessionData {
-    return new SessionData(this.redisClient, sessionId);
+  create(identityId: IdentityId): IdentityData {
+    return new IdentityData(this.redisClient, identityId);
   }
 }
