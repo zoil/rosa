@@ -1,6 +1,10 @@
-import { injectable } from "../../../node_modules/inversify";
-import { Connection } from "../../../node_modules/@types/sockjs";
+import { injectable } from "inversify";
+import { Connection } from "sockjs";
+
+// Modules
 import { ConnectionWrapper } from "./wrapper";
+
+// Types
 import { ConnectionId } from "../../types/connection";
 
 @injectable()

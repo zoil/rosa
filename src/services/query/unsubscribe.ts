@@ -1,13 +1,12 @@
 import { injectable, inject } from "inversify";
+import { QueryId } from "rosa-shared";
 
 // Types
-import { QueryId } from "rosa-shared";
 import { ConnectionId } from "../../types/connection";
 import { TConnectionSubscriptions } from "../../types/di";
 
 // Services
 import ConnectionSubscriptionsService from "../connection/subscriptions";
-import { ConnectionWrapper } from "../connection/wrapper";
 
 /**
  * Singleton Service to let Connections unsubscribing from Queries.
@@ -30,17 +29,16 @@ export default class QueryUnsubscribeService {
   /**
    * Unsubscribe `connection` from all of its subscriptions.
    */
-  async unsubscribeAll(connection: ConnectionWrapper) {
-    const connectionId = connection.getConnectionId();
+  async unsubscribeAll(connectionId: ConnectionId) {
     const queryIds: QueryId[] = await this.connectionSubscriptionsService.getQueryIdsForConnection(
       connectionId
     );
 
     const promises: Promise<void>[] = [];
-    for (let queryId in queryIds) {
+    queryIds.forEach(queryId => {
       const promise = this.unsubscribe(connectionId, queryId);
       promises.push(promise);
-    }
+    });
     return Promise.all(promises);
   }
 }

@@ -1,8 +1,7 @@
 import { injectable, inject } from "inversify";
-import { PublicationName } from "rosa-shared";
+import { QueryId, QueryParams, PublicationName } from "rosa-shared";
 
 // Types
-import { QueryId, QueryParams } from "rosa-shared";
 import { TRedisClient } from "../../types/di";
 import { IPromiseRedisClient } from "../../types/redis";
 

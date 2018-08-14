@@ -6,6 +6,7 @@ import { StringMap } from "../../types/general";
 import { TRedisClient } from "../../types/di";
 import { QueryTag } from "../../types/query";
 import { IPromiseRedisClient } from "../../types/redis";
+import { RedisClient } from "../../../node_modules/@types/redis";
 
 /**
  * Singleton Service to maintain the n:n relation between QueryId and RequestTag.
@@ -29,6 +30,50 @@ export default class QueryTagsService {
    */
   private getKeyForQueryId(queryId: QueryId) {
     return `q:${queryId}:t`;
+  }
+
+  private update_addMissingTags(options: {
+    redis: RedisClient;
+    oldTags: QueryTag[];
+    newTags: QueryTag[];
+    tagKeys: { [key: string]: string };
+    queryId: string;
+    queryKey: string;
+  }) {
+    const missingTags = options.newTags.filter(
+      e => !options.oldTags.includes(e)
+    );
+    missingTags.forEach(tag => {
+      options.redis.sadd(options.queryKey, tag);
+      const tagKey = options.tagKeys[tag];
+      options.redis.sadd(tagKey, options.queryId);
+    });
+  }
+
+  private update_removeObsoleteTags(options: {
+    redis: RedisClient;
+    oldTags: QueryTag[];
+    newTags: QueryTag[];
+    tagKeys: { [key: string]: string };
+    queryId: string;
+    queryKey: string;
+  }) {
+    const obsoleteTags = options.oldTags.filter(
+      e => !options.newTags.includes(e)
+    );
+    obsoleteTags.forEach(tag => {
+      options.redis.srem(options.queryKey, tag);
+      const tagKey = options.tagKeys[tag];
+      options.redis.srem(tagKey, options.queryId);
+    });
+  }
+
+  private update_getTagKeys(tags: QueryTag[]) {
+    const tagKeys: StringMap = Object.create(null);
+    tags.forEach((tag: QueryTag) => {
+      tagKeys[tag] = this.getKeyForTag(tag);
+    });
+    return tagKeys;
   }
 
   /**
@@ -63,34 +108,30 @@ export default class QueryTagsService {
   /**
    * Bind `queryId` with `tag`.
    */
-  async update(queryId: QueryId, tags: QueryTag[]) {
+  async update(queryId: QueryId, newTags: QueryTag[]) {
     const queryKey = this.getKeyForQueryId(queryId);
 
     // calculate keys for `tags`
-    const currentTags: QueryTag[] = await this.getTagsForQueryId(queryId);
-    const tagKeys: StringMap = Object.create(null);
-    tags.forEach((tag: QueryTag) => {
-      tagKeys[tag] = this.getKeyForTag(tag);
-    });
+    const oldTags: QueryTag[] = await this.getTagsForQueryId(queryId);
+    const tagKeys = this.update_getTagKeys([...newTags, ...oldTags]);
 
     // start Redis.Multi
     const redis = this.redisClient.multi();
 
+    const options = {
+      redis,
+      tagKeys,
+      queryKey,
+      queryId,
+      newTags,
+      oldTags
+    };
+
     // add missing tags
-    const missingTags = tags.filter(e => !currentTags.includes(e));
-    missingTags.forEach(tag => {
-      redis.sadd(queryKey, tag);
-      const tagKey = tagKeys[tag];
-      redis.sadd(tagKey, queryId);
-    });
+    this.update_addMissingTags(options);
 
     // remove obsolete tags
-    const obsoleteTags = currentTags.filter(e => !tags.includes(e));
-    obsoleteTags.forEach(tag => {
-      redis.srem(queryKey, tag);
-      const tagKey = tagKeys[tag];
-      redis.srem(tagKey, queryId);
-    });
+    this.update_removeObsoleteTags(options);
 
     // exec Redis.Multi
     return redis.exec();
