@@ -1,9 +1,7 @@
-import { injectable, inject } from "inversify";
+import { injectable } from "inversify";
 import { QueryId } from "rosa-shared";
 
 // Types
-import { TRedisClient } from "../../types/di";
-import { IPromiseRedisClient } from "../../types/redis";
 import { ConnectionId } from "../../types/connection";
 
 /**
@@ -15,92 +13,89 @@ import { ConnectionId } from "../../types/connection";
  */
 @injectable()
 export default class ConnectionSubscriptionsService {
-  /**
-   * Return the Redis key of the SET of QueryIdes for `connectionId`.
-   */
-  private getKeyForConnection(connectionId: ConnectionId): string {
-    return `c:${connectionId}:q`;
-  }
-
-  /**
-   * Return the Redis key of the SET of ConnectionIds for `queryId`.
-   */
-  private getKeyForQueryId(queryId: QueryId): string {
-    return `q:${queryId}:c`;
-  }
-
-  constructor(@inject(TRedisClient) private redisClient: IPromiseRedisClient) {}
+  private connectionIdsByQueryIds: {
+    [key: string]: Set<ConnectionId>;
+  } = Object.create(null);
+  private queryIdsByConnectionIds: {
+    [key: string]: Set<QueryId>;
+  } = Object.create(null);
 
   /**
    * Bind `queryId` with `connectionId`.
    */
-  async bind(connectionId: ConnectionId, queryId: QueryId): Promise<void> {
-    const connectionKey = this.getKeyForConnection(connectionId);
-    const queryKey = this.getKeyForQueryId(queryId);
-    const multi = this.redisClient.multi();
-    multi.sadd(connectionKey, queryId);
-    multi.sadd(queryKey, connectionId);
-    return multi.exec();
+  bind(connectionId: ConnectionId, queryId: QueryId) {
+    // add connectionId to the connections of queryId
+    if (this.connectionIdsByQueryIds[queryId] === undefined) {
+      this.connectionIdsByQueryIds[queryId] = new Set();
+    }
+    this.connectionIdsByQueryIds[queryId].add(connectionId);
+
+    // add queryId to the queries of connectionId
+    if (this.queryIdsByConnectionIds[connectionId] === undefined) {
+      this.queryIdsByConnectionIds[connectionId] = new Set();
+    }
+    this.queryIdsByConnectionIds[connectionId].add(queryId);
   }
 
   /**
    * Unbind `queryId` from `connectionId`.
    */
-  async unbind(connectionId: ConnectionId, queryId: QueryId): Promise<void> {
-    const connectionKey = this.getKeyForConnection(connectionId);
-    const queryKey = this.getKeyForQueryId(queryId);
-    const multi = this.redisClient.multi();
-    multi.srem(connectionKey, queryId);
-    multi.srem(queryKey, connectionId);
-    return multi.exec();
+  unbind(connectionId: ConnectionId, queryId: QueryId) {
+    // Remove connectionId from the connections of queryId
+    if (this.connectionIdsByQueryIds[queryId] !== undefined) {
+      this.connectionIdsByQueryIds[queryId].delete(connectionId);
+    }
+    // Remove queryId from the queries of connectionId
+    if (this.queryIdsByConnectionIds[connectionId] !== undefined) {
+      this.queryIdsByConnectionIds[connectionId].delete(queryId);
+    }
   }
 
   /**
    * Return QueryIdes for `connectionId`.
    */
-  async getQueryIdsForConnection(
-    connectionId: ConnectionId
-  ): Promise<QueryId[]> {
-    const key = this.getKeyForConnection(connectionId);
-    return this.redisClient.smembers(key);
+  getQueryIdsForConnection(connectionId: ConnectionId): QueryId[] {
+    if (this.queryIdsByConnectionIds[connectionId] === undefined) {
+      return [];
+    }
+    return Array.from(this.queryIdsByConnectionIds[connectionId]);
   }
 
   /**
    * Return ConnectionIds for `queryId`.
    */
-  async getConnectionIdsForQueryId(queryId: QueryId): Promise<ConnectionId[]> {
-    const key = this.getKeyForQueryId(queryId);
-    return this.redisClient.smembers(key);
+  getConnectionIdsForQueryId(queryId: QueryId): ConnectionId[] {
+    if (this.connectionIdsByQueryIds[queryId] === undefined) {
+      return [];
+    }
+
+    return Array.from(this.connectionIdsByQueryIds[queryId]);
   }
 
   /**
    * Return 1 ConnectionId for `queryId`.
    */
-  async getOneConnectionForQueryId(queryId: QueryId): Promise<ConnectionId> {
-    const key = this.getKeyForQueryId(queryId);
-    return this.redisClient.srandmember(key);
+  getOneConnectionForQueryId(queryId: QueryId): ConnectionId | false {
+    if (this.connectionIdsByQueryIds[queryId] === undefined) {
+      return false;
+    }
+
+    return this.connectionIdsByQueryIds[queryId].values().next().value;
   }
 
   /**
    * Delete all bindings of `connectionId`.
    */
-  async cleanupConnection(connectionId: ConnectionId): Promise<void> {
-    const queryIds = await this.getQueryIdsForConnection(connectionId);
-    const redis = this.redisClient.multi();
-
-    // remove `connectionId from all queryId sets
+  cleanupConnection(connectionId: ConnectionId) {
+    const queryIds = this.getQueryIdsForConnection(connectionId);
     queryIds.forEach(
-      (queryId: QueryId): void => {
-        const queryKey = this.getKeyForQueryId(queryId);
-        redis.del(queryKey);
-      }
+      (queryId: QueryId) =>
+        this.connectionIdsByQueryIds[queryId] !== undefined
+          ? this.connectionIdsByQueryIds[queryId].delete(connectionId)
+          : () => false
     );
-
-    // delete the set for `connectionId` itself
-    const connectionKey = this.getKeyForConnection(connectionId);
-    redis.del(connectionKey);
-
-    // execute all above
-    return redis.exec();
+    if (this.queryIdsByConnectionIds[connectionId] !== undefined) {
+      delete this.queryIdsByConnectionIds[connectionId];
+    }
   }
 }

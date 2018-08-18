@@ -1,27 +1,17 @@
 import { Container } from "inversify";
-import { expect, spy } from "chai";
+import { expect } from "chai";
 import "chai-spies";
 import "mocha";
 
 // Types
-import {
-  TRedisClient,
-  TConfig,
-  TConnectionSubscriptions
-} from "../../types/di";
+import { TConnectionSubscriptions } from "../../types/di";
 
 // Modules
 import ConnectionSubscriptionsService from "./subscriptions";
 
 // Helpers
-function getConnectionSubscriptionsService(
-  redisMethods: { [key: string]: any } = {},
-  config: { [key: string]: any } = {}
-) {
+function getConnectionSubscriptionsService() {
   const container = new Container();
-  const redisClient = redisMethods;
-  container.bind(TRedisClient).toConstantValue(redisClient);
-  container.bind(TConfig).toConstantValue(config);
   container.bind(TConnectionSubscriptions).to(ConnectionSubscriptionsService);
   return container.get<ConnectionSubscriptionsService>(
     TConnectionSubscriptions
@@ -30,116 +20,77 @@ function getConnectionSubscriptionsService(
 
 // Tests
 describe("ConnectionSubscriptionsService", () => {
-  it("should update Redis on bind()", () => {
-    const fnSadd = spy(() => {});
-    const fnExec = spy(() => Promise.resolve);
-    const fnMulti = spy(() => ({
-      sadd: fnSadd,
-      exec: fnExec
-    }));
-    const service = getConnectionSubscriptionsService({
-      multi: fnMulti
-    });
+  it("should update inner Sets on bind()", () => {
+    const service = getConnectionSubscriptionsService();
     const connectionId = "connection11";
     const queryId = "query1";
     service.bind(connectionId, queryId);
-    expect(fnMulti).to.have.been.called;
 
-    const connectionKey = service["getKeyForConnection"](connectionId);
-    expect(fnSadd).to.have.been.called.with(connectionKey, queryId);
-    const queryKey = service["getKeyForQueryId"](queryId);
-    expect(fnSadd).to.have.been.called.with(queryKey, connectionId);
-    expect(fnExec).to.have.been.called;
+    expect(service["queryIdsByConnectionIds"][connectionId]).to.not.be
+      .undefined;
+    expect(service["queryIdsByConnectionIds"][connectionId].has(queryId)).to.be
+      .true;
+    expect(service["connectionIdsByQueryIds"][queryId]).to.not.be.undefined;
+    expect(service["connectionIdsByQueryIds"][queryId].has(connectionId)).to.be
+      .true;
   });
 
-  it("should update Redis on unbind()", () => {
-    const fnSrem = spy(() => {});
-    const fnExec = spy(() => Promise.resolve);
-    const fnMulti = spy(() => ({
-      srem: fnSrem,
-      exec: fnExec
-    }));
-    const service = getConnectionSubscriptionsService({
-      multi: fnMulti
-    });
-    const connectionId = "connection1";
-    const queryId = "query1";
-    service.unbind(connectionId, queryId);
-    expect(fnMulti).to.have.been.called;
+  it("should update inner Sets on unbind()", () => {
+    const service = getConnectionSubscriptionsService();
+    const connectionId1 = "connection1";
+    const queryId1 = "query1";
+    service.bind(connectionId1, queryId1);
+    const connectionId2 = "connection2";
+    const queryId2 = "query2";
+    service.bind(connectionId2, queryId2);
+    service.unbind(connectionId2, queryId2);
 
-    const identityKey = service["getKeyForConnection"](connectionId);
-    expect(fnSrem).to.have.been.called.with(identityKey, queryId);
-    const queryKey = service["getKeyForQueryId"](queryId);
-    expect(fnSrem).to.have.been.called.with(queryKey, connectionId);
-    expect(fnExec).to.have.been.called;
+    expect(service["queryIdsByConnectionIds"][connectionId2]).to.not.be
+      .undefined;
+    expect(service["queryIdsByConnectionIds"][connectionId1].has(queryId1)).to
+      .be.true;
+    expect(service["queryIdsByConnectionIds"][connectionId2].has(queryId2)).to
+      .be.false;
+
+    expect(service["connectionIdsByQueryIds"][queryId2]).to.not.be.undefined;
+    expect(service["connectionIdsByQueryIds"][queryId1].has(connectionId1)).to
+      .be.true;
+    expect(service["connectionIdsByQueryIds"][queryId2].has(connectionId2)).to
+      .be.false;
   });
 
-  it("should fetch queryIds on getQueryIdsConnection()", () => {
+  it("should return queryIds on getQueryIdsConnection()", () => {
     const dummyQueryIds = ["a", "b", "c"];
-    const fnSmembers = spy(() => Promise.resolve(dummyQueryIds));
-    const service = getConnectionSubscriptionsService({
-      smembers: fnSmembers
-    });
+    const service = getConnectionSubscriptionsService();
     const connectionId = "connection1";
-    service
-      .getQueryIdsForConnection(connectionId)
-      .then(queryIds => expect(queryIds).to.equal(dummyQueryIds));
-
-    const connectionKey = service["getKeyForConnection"](connectionId);
-    expect(fnSmembers).to.have.been.called.with(connectionKey);
+    dummyQueryIds.forEach(queryId => service.bind(connectionId, queryId));
+    const queryIds = service.getQueryIdsForConnection(connectionId);
+    expect(queryIds).to.deep.equal(dummyQueryIds);
   });
 
-  it("should fetch identityIds on getConnectionsForQueryId()", () => {
+  it("should return connectionIds on getConnectionsForQueryId()", () => {
     const dummyConnectionIds = ["a", "b", "c"];
-    const fnSmembers = spy(() => Promise.resolve(dummyConnectionIds));
-    const service = getConnectionSubscriptionsService({
-      smembers: fnSmembers
-    });
+    const service = getConnectionSubscriptionsService();
     const queryId = "query1";
-    service
-      .getConnectionIdsForQueryId(queryId)
-      .then(queryIds => expect(queryIds).to.equal(dummyConnectionIds));
-
-    const queryKey = service["getKeyForQueryId"](queryId);
-    expect(fnSmembers).to.have.been.called.with(queryKey);
+    dummyConnectionIds.forEach(connectionId =>
+      service.bind(connectionId, queryId)
+    );
+    const connectionIds = service.getConnectionIdsForQueryId(queryId);
+    expect(connectionIds).to.deep.equal(dummyConnectionIds);
   });
 
   it("should fetch 1 connectionId on getOneConnectionForQueryId()", () => {
     const dummyConnectionId = "connection1";
-    const fnSrandmember = spy(() => Promise.resolve(dummyConnectionId));
-    const service = getConnectionSubscriptionsService({
-      srandmember: fnSrandmember
-    });
+    const service = getConnectionSubscriptionsService();
     const queryId = "query1";
-    service
-      .getOneConnectionForQueryId(queryId)
-      .then(identityId => expect(identityId).to.equal(dummyConnectionId));
-
-    const queryKey = service["getKeyForQueryId"](queryId);
-    expect(fnSrandmember).to.have.been.called.with(queryKey);
+    service.bind(dummyConnectionId, queryId);
+    const identityId = service.getOneConnectionForQueryId(queryId);
+    expect(identityId).to.equal(dummyConnectionId);
   });
 
-  it("should remove a connections's queries and remove the connection from those queries when calling cleanupConnection()", async () => {
-    const queryIds = ["a", "b", "c"];
-    const connectionId = "connection1";
-    const fnDel = spy(() => false);
-    const fnExec = spy(() => false);
-    const fnMulti = spy(() => ({
-      del: fnDel,
-      exec: fnExec
-    }));
-    const service = getConnectionSubscriptionsService({
-      multi: fnMulti
-    });
-    const fnGetQueryIdsConnection = () => Promise.resolve(queryIds);
-    service["getQueryIdsForConnection"] = fnGetQueryIdsConnection;
-    await service.cleanupConnection(connectionId);
-    const connectionKey = service["getKeyForConnection"](connectionId);
-    queryIds.forEach(queryId => {
-      const queryKey = service["getKeyForQueryId"](queryId);
-      expect(fnDel).to.have.been.called.with(queryKey);
-    });
-    expect(fnDel).to.have.been.called.with(connectionKey);
-    expect(fnExec).to.have.been.called;
-  });
+  // it("should remove a connections's queries and remove the connection from those queries when calling cleanupConnection()", async () => {
+  //   const queryIds = ["a", "b", "c"];
+  //   const connectionId = "connection1";
+  //   const service = getConnectionSubscriptionsService();
+  // });
 });
