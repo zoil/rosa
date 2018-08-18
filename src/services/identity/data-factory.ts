@@ -10,7 +10,7 @@ import { IdentityId } from "../../types/identity";
  * Factory Service for creating SessionData instances.
  */
 @injectable()
-export class IdentityDataFactory {
+export class IdentityDataFactoryService {
   /**
    * Inject Dependencies.
    */

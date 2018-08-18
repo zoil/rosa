@@ -7,7 +7,7 @@ import "mocha";
 import { TRedisClient, TIdentityDataFactory } from "../../types/di";
 
 // Modules
-import { IdentityDataFactory } from "./data-factory";
+import { IdentityDataFactoryService } from "./data-factory";
 
 // Helpers
 function getIdentityData(
@@ -17,8 +17,8 @@ function getIdentityData(
   const container = new Container();
   const redisClient = redisMethods;
   container.bind(TRedisClient).toConstantValue(redisClient);
-  container.bind(TIdentityDataFactory).to(IdentityDataFactory);
-  const identityDataFactory = container.get<IdentityDataFactory>(
+  container.bind(TIdentityDataFactory).to(IdentityDataFactoryService);
+  const identityDataFactory = container.get<IdentityDataFactoryService>(
     TIdentityDataFactory
   );
   return identityDataFactory.create(identityId);
