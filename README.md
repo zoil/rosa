@@ -3,6 +3,6 @@
 
 # Document Socket 🔌
 
-Universal Document Store Adapter via Websockets.
+Universal Document Store Adapter via WebSocket.
 
 
