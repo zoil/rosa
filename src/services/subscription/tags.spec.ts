@@ -8,7 +8,7 @@ import { TRedisClient, TConfig, TQueryTagsService } from "../../types/di";
 
 // Modules
 import QueryTagsService from "./tags";
-import { RedisClient } from "../../../node_modules/@types/redis";
+import { RedisClient } from "redis";
 
 // Helpers
 function getQueryTagsService(

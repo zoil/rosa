@@ -60,3 +60,5 @@ export interface IPromiseRedisClient extends IPromiseRedisClientBase {
     exec: () => Promise<void>;
   };
 }
+
+export interface IPromiseRedisClientSub extends Redis.RedisClient {}

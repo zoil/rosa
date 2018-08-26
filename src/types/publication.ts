@@ -1,6 +1,6 @@
 import { PublicationName, QueryParams } from "rosa-shared";
 
-import { SessionDataAccessor } from "./session";
+import { IdentityDataAccessor } from "./identity";
 import { QueryTag } from "./query";
 
 export type PublicationExecResult = {
@@ -21,7 +21,7 @@ export interface PublicationBasics {
    */
   authorize?(
     params: QueryParams,
-    session: SessionDataAccessor
+    session: IdentityDataAccessor
   ): Promise<boolean> | boolean;
 
   /**
@@ -30,7 +30,7 @@ export interface PublicationBasics {
    */
   onExec?(
     params: QueryParams,
-    session: SessionDataAccessor,
+    session: IdentityDataAccessor,
     results: PublicationExecResult
   ): Promise<void> | void;
 
@@ -40,7 +40,7 @@ export interface PublicationBasics {
    */
   onSubscribe?(
     params: QueryParams,
-    session: SessionDataAccessor
+    session: IdentityDataAccessor
   ): Promise<void> | void;
 
   /**
@@ -49,7 +49,7 @@ export interface PublicationBasics {
    */
   onUnsubscribe?(
     params: QueryParams,
-    session: SessionDataAccessor
+    session: IdentityDataAccessor
   ): Promise<void> | void;
 }
 
@@ -65,7 +65,7 @@ export interface PublicationPrivate extends PublicationBasics {
    */
   execWithSessionData(
     params: QueryParams,
-    session: SessionDataAccessor
+    session: IdentityDataAccessor
   ): Promise<PublicationExecResult> | PublicationExecResult;
 }
 

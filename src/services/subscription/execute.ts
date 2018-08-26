@@ -13,7 +13,7 @@ import {
 import QueryMetaService from "./meta";
 import PublicationStoreService from "../publication/store";
 import ConnectionSubscriptionsService from "../connection/subscriptions";
-import { IdentityDataFactory } from "../identity/data-factory";
+import { IdentityDataFactoryService } from "../identity/data-factory";
 import QueryTagsService from "./tags";
 import {
   TQueryMetaService,
@@ -36,6 +36,7 @@ export default class QueryExecute {
   private async resolveQueryId(
     queryId: QueryId
   ): Promise<{ publication: Publication; queryParams: QueryParams }> {
+    // TODO: query?
     const {
       publicationId,
       queryParams
@@ -105,7 +106,7 @@ export default class QueryExecute {
     @inject(TConnectionSubscriptions)
     private sessionSubscriptionsService: ConnectionSubscriptionsService,
     @inject(TIdentityDataFactory)
-    private sessionDataFactory: IdentityDataFactory,
+    private sessionDataFactory: IdentityDataFactoryService,
     @inject(TQueryTagsService) private queryTagsService: QueryTagsService
   ) {}
 

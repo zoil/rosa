@@ -9,19 +9,27 @@ import { IdentityDataAccessor } from "../../types/identity";
 // Services
 import ConnectionSubscriptionsService from "../connection/subscriptions";
 import PublicationStoreService from "./store";
-import QueryMetaService from "../query/meta";
+import QueryMetaService from "../subscription/meta";
 import { PublicationName } from "rosa-shared";
 import {
   TPublicationStore,
   TQueryMetaService,
   TConnectionSubscriptions
 } from "../../types/di";
+import { ConnectionWrapper } from "../connection/wrapper";
 
 /**
  * Singleton Service to let WebsocketConnections watching Publications.
  */
 @injectable()
 export default class PublicationSubscribeService {
+  @inject(TConnectionSubscriptions)
+  private connectionSubscriptionsService!: ConnectionSubscriptionsService;
+  @inject(TPublicationStore)
+  private publicationStoreService!: PublicationStoreService;
+  @inject(TQueryMetaService)
+  private queryMetaService!: QueryMetaService;
+
   /**
    * Determines whether `identityData` is allowed to use `publication`
    * with `params`. Throws an Error if it's not allowed.
@@ -75,19 +83,11 @@ export default class PublicationSubscribeService {
     return queryId;
   }
 
-  constructor(
-    @inject(TConnectionSubscriptions)
-    private connectionSubscriptionsService: ConnectionSubscriptionsService,
-    @inject(TPublicationStore)
-    private publicationStoreService: PublicationStoreService,
-    @inject(TQueryMetaService) private queryMetaService: QueryMetaService
-  ) {}
-
   /**
-   * Subscribe `identityData` to Publication with `name` using `params`.
+   * Subscribe `connection` to Publication with `name` using `params`.
    */
   async subscribe(
-    identityData: IdentityDataAccessor,
+    connection: ConnectionWrapper,
     publicationName: PublicationName,
     params?: QueryParams
   ): Promise<QueryId> {
@@ -97,10 +97,16 @@ export default class PublicationSubscribeService {
 
     // Try and authorize the `identityData` first for the request.
     const queryParams = params || {};
+    const identityData = connection.getIdentityData();
     await this.authorize(publication, queryParams, identityData);
 
     // Then look or create the Query
     const queryId = await this.getQuery(publication, queryParams, identityData);
+
+    this.connectionSubscriptionsService.bind(
+      connection.getConnectionId(),
+      queryId
+    );
 
     // TODO: schedule Query to execute
 

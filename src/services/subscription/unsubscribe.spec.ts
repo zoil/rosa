@@ -7,7 +7,7 @@ import "mocha";
 import QueryUnsubscribeService from "./unsubscribe";
 import { TConnectionSubscriptions, TQueryUnsubscribe } from "../../types/di";
 import { ConnectionId } from "../../types/connection";
-import { QueryId } from "../../../node_modules/rosa-shared";
+import { QueryId } from "rosa-shared";
 
 // Helpers
 function getQueryUnsubscribeService(

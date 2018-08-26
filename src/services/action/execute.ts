@@ -7,8 +7,8 @@ import { IdentityDataAccessor } from "../../types/identity";
 
 // Services
 import ActionStoreService from "./store";
-import QueryTagsService from "../query/tags";
-import QueryPublishService from "../query/publish";
+import QueryTagsService from "../subscription/tags";
+import QueryPublishService from "../subscription/publish";
 import {
   TActionStore,
   TQueryTagsService,

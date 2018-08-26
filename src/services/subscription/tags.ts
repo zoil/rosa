@@ -6,7 +6,7 @@ import { StringMap } from "../../types/general";
 import { TRedisClient } from "../../types/di";
 import { QueryTag } from "../../types/query";
 import { IPromiseRedisClient } from "../../types/redis";
-import { RedisClient } from "../../../node_modules/@types/redis";
+import { RedisClient } from "redis";
 
 /**
  * Singleton Service to maintain the n:n relation between QueryId and RequestTag.
@@ -18,6 +18,12 @@ import { RedisClient } from "../../../node_modules/@types/redis";
  */
 @injectable()
 export default class QueryTagsService {
+  /**
+   * Inject Dependencies.
+   */
+  @inject(TRedisClient)
+  private redisClient!: IPromiseRedisClient;
+
   /**
    * Return the Redis key of the QueryId SET for `tag`.
    */
@@ -68,6 +74,9 @@ export default class QueryTagsService {
     });
   }
 
+  /**
+   * Return the Redis keys for `tags`.
+   */
   private update_getTagKeys(tags: QueryTag[]) {
     const tagKeys: StringMap = Object.create(null);
     tags.forEach((tag: QueryTag) => {
@@ -75,11 +84,6 @@ export default class QueryTagsService {
     });
     return tagKeys;
   }
-
-  /**
-   * Inject Dependencies.
-   */
-  constructor(@inject(TRedisClient) private redisClient: IPromiseRedisClient) {}
 
   /**
    * Return all Tags for `queryId`.

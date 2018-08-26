@@ -1,40 +1,32 @@
 import "reflect-metadata";
-import { Container } from "typedi";
 
+// Inversify
+import { Kernel } from "./inversify.config";
 import { ConfigType } from "./types/config";
-import Config from "./config";
 
+// Services
+import * as Services from "./types/di";
 import PublicationStoreService from "./services/publication/store";
 import ActionStoreService from "./services/action/store";
-import WebsocketServer from "./services/websocket/server";
-import {
-  RedisClient,
-  RedisClientSub,
-  redisClientFactory
-} from "./services/redis-client";
+import WebsocketServer from "./services/sockjs-server";
 
+// export imports
 export * from "./types/publication";
-export * from "./types/session";
+export * from "./types/identity";
 export * from "./types/action";
 
+/**
+ * Instantiate a new Rosa Server.
+ */
 export function Rosa(config: ConfigType) {
-  const configInstance = Container.get(Config);
-  configInstance.init(config);
-
-  // Create the Read/Write...
-  const redisClient = redisClientFactory(configInstance);
-  Container.set(RedisClient, redisClient);
-  // ...and the Subscribe-only Redis clients
-  const redisClientSub = redisClientFactory(configInstance);
-  Container.set(RedisClientSub, redisClientSub);
-
-  // Create and wire up the SockJS server
-  const server = Container.get(WebsocketServer);
+  const iocKernel = new Kernel(config);
+  const server = iocKernel.get<WebsocketServer>(Services.TWebsocketServer);
   server.init();
 
-  // then expose the public methods
-  const publications = Container.get(PublicationStoreService);
-  const actions = Container.get(ActionStoreService);
+  const publications = iocKernel.get<PublicationStoreService>(
+    Services.TPublicationStore
+  );
+  const actions = iocKernel.get<ActionStoreService>(Services.TActionStore);
 
   return {
     // socket server

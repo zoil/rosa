@@ -1,8 +1,6 @@
-import * as Promise from "bluebird";
-
 import { ActionName, ActionParams, QueryId } from "rosa-shared";
 
-import { SessionDataAccessor } from "./session";
+import { IdentityDataAccessor } from "./identity";
 import { QueryTag } from "./query";
 
 export type ActionExecResults = {
@@ -23,7 +21,7 @@ export interface Action {
    */
   authorize?(
     params: ActionParams,
-    session: SessionDataAccessor
+    session: IdentityDataAccessor
   ): Promise<boolean> | boolean;
 
   /**
@@ -32,7 +30,7 @@ export interface Action {
    */
   exec(
     params: ActionParams,
-    session: SessionDataAccessor
+    session: IdentityDataAccessor
   ): Promise<ActionExecResults> | ActionExecResults;
 }
 
@@ -51,6 +49,6 @@ export interface PredictableAction extends Action {
   predict(
     currentValue: any,
     params: ActionParams,
-    session: SessionDataAccessor
+    session: IdentityDataAccessor
   ): Prediction[] | Promise<Prediction[]>;
 }

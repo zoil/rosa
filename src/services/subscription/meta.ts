@@ -16,16 +16,17 @@ export const KEY_PARAMS = "params";
 @injectable()
 export default class QueryMetaService {
   /**
+   * Inject Dependencies.
+   */
+  @inject(TRedisClient)
+  private redisClient!: IPromiseRedisClient;
+
+  /**
    * Return the Redis key for `queryId`.
    */
   private getKey(queryId: QueryId) {
     return `q:${queryId}`;
   }
-
-  /**
-   * Inject Dependencies.
-   */
-  constructor(@inject(TRedisClient) private redisClient: IPromiseRedisClient) {}
 
   /**
    * Returns true if queryId exists.

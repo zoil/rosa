@@ -53,14 +53,6 @@ export default class IdentityMetaService {
   }
 
   /**
-   * Return the `secret` for `identityId`.
-   */
-  // private getExpiry(identityId: IdentityId): Promise<number> {
-  //   const key = this.getKey(identityId);
-  //   return this.redisClient.hgetAsync(key, KEY_EXPIRY);
-  // }
-
-  /**
    * Create a new identity.
    * Generate a unique id and a secret, store it in Redis and tell them to the client.
    */
@@ -75,6 +67,9 @@ export default class IdentityMetaService {
     };
   }
 
+  /**
+   * TODO should this go to doso-protocol?
+   */
   generateSignature(
     identityId: IdentityId,
     secret: string,
@@ -117,6 +112,8 @@ export default class IdentityMetaService {
   }
 
   /**
+   * Reset the expiry date on `identityId`. When the time comes, the
+   * Identity will be deleted from Redis.
    * @todo
    */
   async resetExpiry(identityId: IdentityId, isActive: boolean): Promise<void> {

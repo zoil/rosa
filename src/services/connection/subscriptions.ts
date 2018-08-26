@@ -1,3 +1,5 @@
+// TODO: server subscriptions
+
 import { injectable } from "inversify";
 import { QueryId } from "rosa-shared";
 
@@ -97,5 +99,12 @@ export default class ConnectionSubscriptionsService {
     if (this.queryIdsByConnectionIds[connectionId] !== undefined) {
       delete this.queryIdsByConnectionIds[connectionId];
     }
+  }
+
+  /**
+   * Return an array of QueryIds which any of our connections are subscribed to.
+   */
+  getAllQueryIds(): string[] {
+    return Object.keys(this.connectionIdsByQueryIds);
   }
 }
